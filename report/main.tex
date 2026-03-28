@@ -55,12 +55,11 @@
 
 
 \begin{abstract}
-Entity Resolution (ER) -- determining which records across different data sources refer to the same real-world entity -- is a fundamental problem in data management.
-Despite decades of research, most ER benchmarks consist of small, two-table datasets that do not reflect the complexity of real-world data integration.
-In this project, I constructed a large-scale, multi-table ER dataset by combining two major bibliographic databases: DBLP (6.9M publications) and Semantic Scholar (3.2M papers with citations, authors, and abstracts).
-The ground truth is derived from Semantic Scholar's cross-reference identifiers linking to DBLP keys, yielding over 280K labeled matching pairs without manual annotation.
-The dataset, organized as 11 relational tables with well-defined primary and foreign keys, was integrated into the RelBench framework for Relational Deep Learning.
-A proof-of-concept experiment on a 20K-paper subset demonstrated that the pipeline works end-to-end: a GNN model (HeteroGraphSAGE) achieved MAP@12 of 0.0031 on the validation set, outperforming a LightGBM baseline (MAP@12 of 0.0001) by over 20$\times$, suggesting that relational structure provides useful signal for entity matching.
+Most Entity Resolution benchmarks are small, two-table datasets -- useful for quick comparisons, but far removed from the complexity of real data integration problems.
+This project constructs a large-scale, multi-table ER dataset from two bibliographic databases: DBLP (6.9M publications) and Semantic Scholar (3.2M papers, plus citations, authors, and abstracts).
+The ground truth comes from DBLP keys embedded in Semantic Scholar's \texttt{externalIds} field, giving over 280K labeled pairs with no manual annotation.
+The full dataset spans 11 relational tables and is packaged as a custom RelBench dataset and link prediction task.
+A small-scale experiment on a 20K-paper subset showed that the pipeline works end-to-end: HeteroGraphSAGE achieved MAP@12 of 0.0031, roughly 20$\times$ better than a LightGBM baseline that has no access to graph structure.
 \end{abstract}
 
 \tableofcontents
@@ -84,15 +83,14 @@ Recently, the RelBench framework \citep{robinson2024relbench} introduced a new p
 The idea is to represent relational databases as heterogeneous graphs and use Graph Neural Networks (GNNs) to learn directly from the multi table structure, without manual feature engineering.
 RelBench comes with several benchmark datasets (Amazon reviews, Stack Overflow, Formula 1, and others), but at the time of this project it did not include a large scale Entity Resolution task.
 
-The goal of this project was to fill that gap.
+This project is an attempt to fill that gap.
 I built a large ER dataset by combining two major bibliographic databases: DBLP and Semantic Scholar.
-The dataset contains millions of papers, authors, citations, and abstracts spread across multiple relational tables.
-I also defined a ground truth for the matching task and integrated everything into RelBench as a custom dataset and task.
+The dataset contains millions of papers, authors, citations, and abstracts spread across multiple relational tables, with a ground truth derived from DBLP cross-references in Semantic Scholar's metadata.
+The whole thing is packaged as a custom RelBench dataset and task.
 
-To be clear about what this project is and is not: the main contribution is the dataset construction pipeline.
-I did not develop new ER algorithms or train state of the art models.
-What I did do is all the data engineering work needed to create a usable, large scale, multi table ER benchmark, from scraping and downloading the raw data, to cleaning it, setting up a PostgreSQL database, generating ground truth, enforcing referential integrity, and packaging it for RelBench.
-I also ran a small proof of concept experiment on a subset of the data to show that the dataset works with RelBench's GNN and LightGBM training pipelines.
+The main contribution here is the dataset construction pipeline, not new algorithms.
+All the work went into the data engineering side: scraping and downloading the raw data, cleaning it, setting up a PostgreSQL database, generating ground truth, enforcing referential integrity, and getting everything into a form that RelBench can actually use.
+I also ran a small proof-of-concept experiment on a subset of the data to verify that it works with RelBench's training pipelines.
 
 The rest of this report is organized as follows.
 Section~\ref{sec:background} covers the background on ER, RelBench, and the data sources.
@@ -256,13 +254,11 @@ I looked at:
     \item \textbf{DBLP + Citeseer}: A classic combination, but Citeseer's data quality has degraded over time.
 \end{itemize}
 
-The key insight was that we needed a dataset with two properties:
-(1) Multiple interconnected tables, not just a flat pair of record sets, so that RelBench's relational structure is actually useful.
-(2) A reliable ground truth linking mechanism.
+What we needed were two things: multiple interconnected tables (not just a flat pair), so that RelBench's relational graph structure is actually useful, and a reliable ground truth that does not require manual labeling at scale.
 
-DBLP and Semantic Scholar satisfied both requirements.
+DBLP and Semantic Scholar fit both requirements well.
 Semantic Scholar has rich relational structure (papers, authors, citations, venues, abstracts) and its \texttt{externalIds} field provides a direct link to DBLP keys.
-An important finding from this survey was that, as far as I could tell, \textbf{there is no existing large scale multi table ER benchmark for relational data}. Most datasets in the literature are single table or two table.
+One thing that surprised me during this survey: as far as I could find, \textbf{there is no existing large-scale multi-table ER benchmark for relational data}. Almost everything in the literature is single-table or two-table.
 
 
 \subsection{DBLP Data Extraction}
@@ -301,14 +297,12 @@ dblp\_authored & 11,403,879 & Authorship relation (author $\times$ publication) 
 \subsection{Semantic Scholar Data Extraction}
 
 Getting the Semantic Scholar data was considerably harder than DBLP.
-The data is available through the Semantic Scholar Academic Graph (S2AG) API, but the full corpus is enormous (over 200 million papers).
-I used the bulk download endpoint, which provides the data as a series of gzipped JSON files.
-
-The process worked as follows:
+The full corpus is enormous (over 200 million papers), and the bulk download API turned out to be fairly unreliable -- downloads would frequently time out or return 502/503 errors, so I ended up restarting transfers multiple times.
+The data comes as a series of gzipped JSON files, one JSON object per line.
 
 \begin{enumerate}
     \item \textbf{API discovery}: Using the S2AG API (\texttt{https://api.semanticscholar.org/datasets/v1/release}), I first identified available dataset releases and their download links. Each release contains datasets for papers, authors, abstracts, citations, paper IDs, publication venues, and TLDRs.
-    \item \textbf{Bulk download}: Each dataset consists of multiple shards (e.g., \texttt{papers\_000.gz} through \texttt{papers\_060.gz}). I wrote download scripts with retry logic (up to 7 attempts per shard, handling 502/503/504 errors) because the API was unreliable and downloads would frequently time out.
+    \item \textbf{Bulk download}: Each dataset consists of multiple shards (e.g., \texttt{papers\_000.gz} through \texttt{papers\_060.gz}). I wrote download scripts with retry logic (up to 7 attempts per shard, handling 502/503/504 errors).
     \item \textbf{JSON to CSV conversion}: Each gzipped file contains one JSON object per line. I wrote \texttt{create\_csv.py} to stream through all shards, extract the relevant fields, and write them to CSV format. This was necessary because the raw JSON was too large to load into memory.
     \item \textbf{PostgreSQL staging}: The converted data was loaded into PostgreSQL using JSONB columns for maximum flexibility. I used \texttt{UNLOGGED} tables during the initial load for better performance (skipping write ahead log), then migrated to logged tables. The staging table schema was intentionally minimal:
 
@@ -567,7 +561,7 @@ For each evaluation timestamp $t$, the query finds all papers whose matched DBLP
 \label{sec:experiments}
 %======================================================================
 
-To verify that the dataset works with RelBench's training pipeline and to obtain initial performance numbers, I ran a proof-of-concept experiment on a sampled subset of the data.
+To check whether the dataset actually works end-to-end with RelBench, I ran a small experiment on a sampled subset of the data.
 
 \subsection{Experimental Setup}
 
@@ -666,21 +660,12 @@ The absolute metric values are low, which is expected for several reasons:
     \item \textbf{Small subset.} With only 14K papers and sparse citation links (93 rows), the graph structure is much weaker than in the full 3.2M-paper dataset.
 \end{enumerate}
 
-The key finding is that the \textbf{GNN outperforms LightGBM by over 20$\times$} on all metrics.
-This demonstrates that graph structure provides genuine signal for entity resolution: the GNN can propagate information along citation, authorship, and cross-corpus edges to learn which papers match which DBLP entries.
-LightGBM, which can only use flat features from the source and destination entities, cannot leverage this relational context.
+The GNN outperforms LightGBM by about 20$\times$ on all metrics.
+This is not a surprise -- without title or abstract features, LightGBM has almost no signal to work with, while the GNN can at least propagate information along citation, authorship, and cross-corpus edges.
+The absolute numbers are low, but that is partly a function of the task setup: the model must find the one correct match among over 23,000 candidates using only metadata (no text).
 
-Beyond the metric comparison, the POC validates the full pipeline:
-
-\begin{enumerate}
-    \item All 11 tables load correctly with proper data types.
-    \item Referential integrity is maintained across all FK/PK relationships.
-    \item The heterogeneous graph has the expected structure with cross-corpus edges.
-    \item Temporal splitting prevents data leakage.
-    \item Both GNN and LightGBM training pipelines run to completion.
-\end{enumerate}
-
-A full-scale experiment on the complete 6.7M-paper dataset with text embeddings (GloVe or a pre-trained language model) would likely yield substantially higher metrics, since title similarity alone resolves the majority of bibliographic matches.
+The more important result is that the pipeline works end-to-end: all 11 tables load, the heterogeneous graph builds correctly with cross-corpus edges, temporal splitting does not leak data, and both training pipelines run to completion.
+With text features included, the numbers would be much higher -- title matching alone resolves the majority of bibliographic ER cases.
 
 
 %======================================================================
@@ -699,10 +684,9 @@ The TDK lab machine had about 40 GB available, which was enough for data process
 Running experiments on the complete dataset would require a machine with more memory, or implementing an out of core loading strategy.
 
 \paragraph{No model development.}
-This project focused entirely on dataset construction.
-I did not develop or evaluate new ER models.
-The proof of concept experiment used RelBench's default models without any tuning.
-A natural next step would be to design ER specific architectures that exploit the cross corpus structure.
+This project focused entirely on dataset construction and did not produce new ER algorithms.
+The experiments used RelBench's default models off the shelf, with minimal tuning.
+Designing ER-specific architectures that use both sides of the cross-corpus structure is an obvious next direction.
 
 \paragraph{Author and venue matching.}
 The current ground truth only covers paper level matching.
@@ -728,16 +712,13 @@ The most immediate next steps would be:
 \label{sec:conclusion}
 %======================================================================
 
-In this project, I constructed a large scale, multi table Entity Resolution dataset by combining DBLP and Semantic Scholar.
-The dataset contains millions of papers, authors, citations, and abstracts organized in a relational schema with well defined primary and foreign keys.
-The ground truth was generated from Semantic Scholar's external identifier cross references to DBLP.
+I constructed a large-scale, multi-table Entity Resolution dataset from DBLP and Semantic Scholar, covering millions of papers, authors, citations, and abstracts with a ground truth derived from cross-references in Semantic Scholar's metadata.
+The dataset is packaged as a custom RelBench dataset (\texttt{rel-citation}) and link prediction task (\texttt{citation-cs-linkage}).
 
-I integrated the dataset into the RelBench framework as a custom dataset (\texttt{rel-citation}) and task (\texttt{citation-cs-linkage}), and verified that RelBench's GNN and LightGBM training pipelines work correctly on a proof-of-concept subset.
-A HeteroGraphSAGE model outperformed the LightGBM baseline by over 20$\times$ on validation MAP@12, demonstrating that graph structure provides useful signal for entity resolution even without text features.
+A small experiment on a 20K-paper subset showed the pipeline works, with HeteroGraphSAGE outperforming LightGBM by about 20$\times$ on MAP@12 -- suggesting that graph structure is useful for this task even without text features.
 
-The main contribution of this project is the dataset itself and the data engineering pipeline behind it.
-As far as I know, this is one of the first large-scale multi-table ER benchmarks designed for relational deep learning.
-I hope it will be useful for future research on entity resolution with graph neural networks.
+The main contribution is the data itself and the engineering pipeline behind it.
+Running full-scale experiments on the complete dataset still requires more hardware than I had access to during this project, but the data and code are in place for whoever wants to pick it up.
 
 
 \bibliography{references}
