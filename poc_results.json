@@ -1,0 +1,70 @@
+{
+  "dataset": "DBLP-Semantic Scholar POC",
+  "tables": {
+    "dblp_publication": 6840,
+    "dblp_article": 5971,
+    "dblp_book": 48,
+    "dblp_incollection": 108,
+    "dblp_inproceedings": 3873,
+    "dblp_author": 18435,
+    "dblp_authored": 19248,
+    "authors_expanded": 5241,
+    "citations_expanded": 17,
+    "papers_expanded": 2110,
+    "abstracts_expanded": 246
+  },
+  "lgb_results": {
+    "train": {
+      "num_rows": 298,
+      "num_unique_src": 298
+    },
+    "val": {
+      "num_rows": 0
+    },
+    "test": {
+      "num_rows": 0
+    }
+  },
+  "gnn_results": {
+    "node_types": [
+      "dblp_publication",
+      "dblp_article",
+      "dblp_book",
+      "dblp_incollection",
+      "dblp_inproceedings",
+      "dblp_author",
+      "dblp_authored",
+      "authors_expanded",
+      "citations_expanded",
+      "papers_expanded",
+      "abstracts_expanded"
+    ],
+    "edge_types": [
+      "('dblp_article', 'f2p_pubid', 'dblp_publication')",
+      "('dblp_publication', 'rev_f2p_pubid', 'dblp_article')",
+      "('dblp_book', 'f2p_pubid', 'dblp_publication')",
+      "('dblp_publication', 'rev_f2p_pubid', 'dblp_book')",
+      "('dblp_incollection', 'f2p_pubid', 'dblp_publication')",
+      "('dblp_publication', 'rev_f2p_pubid', 'dblp_incollection')",
+      "('dblp_inproceedings', 'f2p_pubid', 'dblp_publication')",
+      "('dblp_publication', 'rev_f2p_pubid', 'dblp_inproceedings')",
+      "('dblp_authored', 'f2p_pubid', 'dblp_publication')",
+      "('dblp_publication', 'rev_f2p_pubid', 'dblp_authored')",
+      "('dblp_authored', 'f2p_authorid', 'dblp_author')",
+      "('dblp_author', 'rev_f2p_authorid', 'dblp_authored')",
+      "('citations_expanded', 'f2p_citingcorpusid', 'papers_expanded')",
+      "('papers_expanded', 'rev_f2p_citingcorpusid', 'citations_expanded')",
+      "('citations_expanded', 'f2p_citedcorpusid', 'papers_expanded')",
+      "('papers_expanded', 'rev_f2p_citedcorpusid', 'citations_expanded')",
+      "('papers_expanded', 'f2p_authorId', 'authors_expanded')",
+      "('authors_expanded', 'rev_f2p_authorId', 'papers_expanded')",
+      "('papers_expanded', 'f2p_externalid_dblp', 'dblp_publication')",
+      "('dblp_publication', 'rev_f2p_externalid_dblp', 'papers_expanded')",
+      "('abstracts_expanded', 'f2p_corpusid', 'papers_expanded')",
+      "('papers_expanded', 'rev_f2p_corpusid', 'abstracts_expanded')"
+    ],
+    "num_node_types": 11,
+    "num_edge_types": 22,
+    "build_time_sec": 0.8
+  }
+}

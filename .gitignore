@@ -1,0 +1,20 @@
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.synctex.gz
+
+# Python
+__pycache__/
+*.pyc
+
+# Reference materials (not our code)
+Dan_Kalifa___Project___RelNN.zip
+relbench_ER (1).docx
+Project review for ER.html
+
+# POC data CSVs (too large for git)
+poc_data/*.csv
