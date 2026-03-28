@@ -1,0 +1,40 @@
+{
+  "dataset": "DBLP-Semantic Scholar POC v2",
+  "tables": {
+    "dblp_publication": 23410,
+    "dblp_article": 15330,
+    "dblp_book": 117,
+    "dblp_incollection": 168,
+    "dblp_inproceedings": 9385,
+    "dblp_author": 44991,
+    "dblp_authored": 50077,
+    "authors_expanded": 13633,
+    "citations_expanded": 93,
+    "papers_expanded": 12810,
+    "abstracts_expanded": 595
+  },
+  "val_timestamp": "2019-01-01 00:00:00",
+  "test_timestamp": "2022-01-01 00:00:00",
+  "lgb_results": {
+    "val": {
+      "link_prediction_precision": 7.233796296296296e-05,
+      "link_prediction_recall": 0.0008680555555555555,
+      "link_prediction_map": 0.00014467592592592592
+    },
+    "test": {
+      "error": "empty split"
+    }
+  },
+  "gnn_results": {
+    "training_completed": true,
+    "epochs": 10,
+    "val": {
+      "link_prediction_precision": 0.0006510416666666665,
+      "link_prediction_recall": 0.0078125,
+      "link_prediction_map": 0.003095407196969697
+    },
+    "test": {
+      "error": "empty"
+    }
+  }
+}

@@ -18,3 +18,4 @@ Project review for ER.html
 
 # POC data CSVs (too large for git)
 poc_data/*.csv
+poc_data_v2/*.csv
